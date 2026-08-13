@@ -48,7 +48,7 @@ function parseInvoice(text:string,file:string): Row {
 async function extractText(file:File,onProgress:(s:string)=>void){
   if(file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf")){
     const pdfjs=await import("pdfjs-dist/legacy/build/pdf.mjs");
-    pdfjs.GlobalWorkerOptions.workerSrc=new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs",import.meta.url).toString();
+    pdfjs.GlobalWorkerOptions.workerSrc="/pdf.worker.min.mjs";
     const pdf=await pdfjs.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
     let text="";
     for(let i=1;i<=pdf.numPages;i++){onProgress(`Leyendo página ${i} de ${pdf.numPages}…`);const page=await pdf.getPage(i);const content=await page.getTextContent();text+=content.items.map((x:any)=>x.str).join(" ")+"\n";}
