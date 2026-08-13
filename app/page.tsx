@@ -20,6 +20,15 @@ const money = (n:number, currency:string) => new Intl.NumberFormat("es-PE",{styl
 const valueAfter = (text:string, patterns:RegExp[]) => {
   for (const p of patterns) { const m=text.match(p); if(m?.[1]) return m[1].trim(); } return "";
 };
+const lastValueAfter = (text:string, patterns:RegExp[]) => {
+  for (const pattern of patterns) {
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    const matches = [...text.matchAll(new RegExp(pattern.source, flags))];
+    const value = matches.at(-1)?.[1];
+    if (value) return value.trim();
+  }
+  return "";
+};
 const parseAmount = (s:string) => Number((s||"0").replace(/,/g,""));
 
 function parseInvoice(text:string,file:string): Row {
@@ -32,8 +41,17 @@ function parseInvoice(text:string,file:string): Row {
   const factura=/FACTURA/i.test(clean); const nota=/NOTA DE VENTA/i.test(clean);
   const dateRaw=valueAfter(clean,[/(?:F\.?Emisi[óo]n|FECHA EMISI[ÓO]N|Fecha emisi[óo]n)\s*:?[ ]*(\d{1,2}\/\d{1,2}\/\d{4})/i]);
   const parts=dateRaw.split("/"); const fecha=parts.length===3?`${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`:"";
-  const total=parseAmount(valueAfter(clean,[/(?:IMPORTE TOTAL|TOTAL)\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i]));
-  const igv=parseAmount(valueAfter(clean,[/(?:Total I\.?G\.?V\.?|I\.?G\.?V\.?)\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i]));
+  // Los comprobantes suelen tener una columna llamada "Total" antes del resumen.
+  // Priorizamos etiquetas inequívocas y, como respaldo, la última coincidencia.
+  const total=parseAmount(lastValueAfter(clean,[
+    /IMPORTE TOTAL\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
+    /TOTAL A PAGAR\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
+    /\bTOTAL\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
+  ]));
+  const igv=parseAmount(lastValueAfter(clean,[
+    /TOTAL I\.?G\.?V\.?\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
+    /\bI\.?G\.?V\.?\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
+  ]));
   let base=parseAmount(valueAfter(clean,[/(?:Total OP\. Gravada|GRAVADA|SUBTOTAL|BASE IMPONIBLE)\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i]));
   if(!base&&total) base=Math.round((total-igv)*100)/100;
   const lines=clean.split(/\n/).map(x=>x.trim()).filter(Boolean);
