@@ -29,7 +29,13 @@ const lastValueAfter = (text:string, patterns:RegExp[]) => {
   }
   return "";
 };
-const parseAmount = (s:string) => Number((s||"0").replace(/,/g,""));
+const parseAmount = (s:string) => {
+  const raw=(s||"0").replace(/[^\d.,-]/g,"");
+  const comma=raw.lastIndexOf(","); const dot=raw.lastIndexOf(".");
+  if(comma>=0&&dot>=0){const decimal=Math.max(comma,dot);return Number(`${raw.slice(0,decimal).replace(/[.,]/g,"")}.${raw.slice(decimal+1)}`);}
+  if(comma>=0){const decimals=raw.length-comma-1;return Number(decimals===2?raw.replace(/\./g,"").replace(",","."):raw.replace(/,/g,""));}
+  return Number(raw||0);
+};
 
 function parseInvoice(text:string,file:string): Row {
   const clean=text.replace(/\u00a0/g," ").replace(/[ \t]+/g," ");
@@ -44,15 +50,15 @@ function parseInvoice(text:string,file:string): Row {
   // Los comprobantes suelen tener una columna llamada "Total" antes del resumen.
   // Priorizamos etiquetas inequívocas y, como respaldo, la última coincidencia.
   const total=parseAmount(lastValueAfter(clean,[
-    /IMPORTE TOTAL\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
-    /TOTAL A PAGAR\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
-    /\bTOTAL\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
+    /IMPORTE TOTAL\s*:?\s*(?:S\/|US\$|USD|PEN)?\s*:?\s*([\d,.]+)/i,
+    /TOTAL A PAGAR\s*:?\s*(?:S\/|US\$|USD|PEN)?\s*:?\s*([\d,.]+)/i,
+    /\bTOTAL\s*:?\s*(?:S\/|US\$|USD|PEN)?\s*:?\s*([\d,.]+)/i,
   ]));
   const igv=parseAmount(lastValueAfter(clean,[
-    /TOTAL I\.?G\.?V\.?\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
-    /\bI\.?G\.?V\.?\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i,
+    /TOTAL I\.?G\.?V\.?\s*:?\s*(?:S\/|US\$|USD|PEN)?\s*:?\s*([\d,.]+)/i,
+    /\bI\.?G\.?V\.?\s*:?\s*(?:S\/|US\$|USD|PEN)?\s*:?\s*([\d,.]+)/i,
   ]));
-  let base=parseAmount(valueAfter(clean,[/(?:Total OP\. Gravada|GRAVADA|SUBTOTAL|BASE IMPONIBLE)\s*(?:S\/|US\$|USD|PEN)?\s*:?[ ]*([\d,.]+)/i]));
+  let base=parseAmount(lastValueAfter(clean,[/(?:Total OP\. Gravada|GRAVADA|SUBTOTAL|BASE IMPONIBLE)\s*:?\s*(?:S\/|US\$|USD|PEN)?\s*:?\s*([\d,.]+)/i]));
   if(!base&&total) base=Math.round((total-igv)*100)/100;
   const lines=clean.split(/\n/).map(x=>x.trim()).filter(Boolean);
   let razon=lines.find(x=>x.length>3&&!/RUC|FACTURA|BOLETA|NOTA DE VENTA/i.test(x))||"";
