@@ -66,7 +66,7 @@ export function parseInvoice(text:string,file:string,companyRuc:string): Row {
   // Se priorizan las etiquetas del resumen para no confundir columnas o cantidades.
   let total=amountByLabel(clean,[
     "IMPORTE\\s+TOTAL", "TOTAL\\s+A\\s+PAGAR", "TOTAL\\s+FACTURA", "TOTAL\\s+VENTA",
-    "MONTO\\s+TOTAL", "TOTAL\\s+GENERAL", "TOTAL\\s+DEL\\s+COMPROBANTE",
+    "MONTO\\s+TOTAL", "TOTAL\\s+GENERAL", "TOTAL\\s+DEL\\s+COMPROBANTE", "TOTAL\\s+RECIBO",
     "\\bTOTAL(?!\\s+(?:OP\\.?|I\\.?\\s*G\\.?\\s*V\\.?|ISC|DESCUENTO|ANTICIPO))",
   ]);
   let igv=amountByLabel(clean,[
