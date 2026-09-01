@@ -39,14 +39,17 @@ const parseAmount = (s:string) => {
 const roundMoney = (n:number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const amountByLabel = (text:string, labels:string[]) => {
   const currency="(?:S\\/?|US\\$|USD|PEN|SOLES?|D[ÓO]LARES?)";
-  const amount="([0-9][0-9.,]*)";
+  // Evita tomar porcentajes (18%) o códigos largos de una fila como importes.
+  const amount="([0-9][0-9.,]*)(?![0-9.,]|\\s*%)";
   for(const label of labels){
     const before=new RegExp(`${label}\\s*(?::|-)?\\s*(?:${currency})?\\s*(?::|-)?\\s*${amount}`,"gi");
     const after=new RegExp(`(?:${currency})\\s*(?::|-)?\\s*${label}\\s*(?::|-)?\\s*${amount}`,"gi");
     for(const pattern of [before,after]){
       const matches=[...text.matchAll(pattern)];
-      const value=matches.at(-1)?.[1];
-      if(value!==undefined)return parseAmount(value);
+      for(const match of matches.reverse()){
+        const value=match[1];
+        if(value!==undefined&&!/^\d{7,}$/.test(value))return parseAmount(value);
+      }
     }
   }
   return 0;
@@ -58,11 +61,11 @@ export function parseInvoice(text:string,file:string,companyRuc:string): Row {
   const documentRucs=[...new Set([...rucs,...[...clean.matchAll(/\b\d{11}\b/g)].map(m=>m[0])])];
   const ruc=rucs[0]||documentRucs[0]||"";
   const clienteRuc=documentRucs.find(x=>x!==ruc)||"";
-  const comprobante=valueAfter(clean,[/(?:No\.?\s*:|FACTURA ELECTR[ÓO]NICA\s*)\s*([A-Z0-9]{1,4})\s*-\s*(\d{1,10})/i,/\b([A-Z]{1,3}\d{1,3})-(\d{3,10})\b/i]);
-  const compMatch=clean.match(/(?:No\.?\s*:|FACTURA ELECTR[ÓO]NICA\s*)\s*([A-Z0-9]{1,4})\s*-\s*(\d{1,10})/i)||clean.match(/\b([A-Z]{1,3}\d{1,3})-(\d{3,10})\b/i);
+  const comprobante=valueAfter(clean,[/(?:N[º°]|No\.?)\s*:?\s*([A-Z]{1,3}\d{1,3})\s*-\s*(\d{1,10})/i,/FACTURA ELECTR[ÓO]NICA\s*([A-Z]{1,3}\d{1,3})\s*-\s*(\d{1,10})/i,/\b([A-Z]{1,3}\d{1,3})\s*-\s*(\d{3,10})\b/i]);
+  const compMatch=clean.match(/(?:N[º°]|No\.?)\s*:?\s*([A-Z]{1,3}\d{1,3})\s*-\s*(\d{1,10})/i)||clean.match(/FACTURA ELECTR[ÓO]NICA\s*([A-Z]{1,3}\d{1,3})\s*-\s*(\d{1,10})/i)||clean.match(/\b([A-Z]{1,3}\d{1,3})\s*-\s*(\d{3,10})\b/i);
   const factura=/FACTURA/i.test(clean); const nota=/NOTA DE VENTA/i.test(clean);
-  const dateRaw=valueAfter(clean,[/(?:F\.?Emisi[óo]n|FECHA EMISI[ÓO]N|Fecha emisi[óo]n)\s*:?[ ]*(\d{1,2}\/\d{1,2}\/\d{4})/i]);
-  const parts=dateRaw.split("/"); const fecha=parts.length===3?`${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`:"";
+  const dateRaw=valueAfter(clean,[/(?:F\.?Emisi[óo]n|FECHA (?:DE )?EMISI[ÓO]N|Fecha emisi[óo]n)\s*:?[ ]*(\d{1,2}\/\d{1,2}\/\d{4})/i,/(?:F\.?Emisi[óo]n|FECHA (?:DE )?EMISI[ÓO]N|Fecha emisi[óo]n)\s*:?[ ]*(\d{4}-\d{2}-\d{2})/i]);
+  const parts=dateRaw.split("/"); const fecha=/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)?dateRaw:parts.length===3?`${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`:"";
   // Se priorizan las etiquetas del resumen para no confundir columnas o cantidades.
   let total=amountByLabel(clean,[
     "IMPORTE\\s+TOTAL", "TOTAL\\s+A\\s+PAGAR", "TOTAL\\s+FACTURA", "TOTAL\\s+VENTA",
